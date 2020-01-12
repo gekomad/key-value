@@ -35,7 +35,7 @@ trait KeyValue[A, B] {
 
   def set(key1: String, key2: A, value: B, ttl: Option[Long] = None): Unit = map.get(key1) match {
     case Some(g) => g += (key2   -> new Value(value, ttl))
-    case None    => map += (key1 -> scala.collection.mutable.Map((key2 -> new Value(value, ttl))))
+    case None    => map += (key1 -> scala.collection.mutable.Map(key2 -> new Value(value, ttl)))
   }
 
   def clear(): Unit = map.clear()

@@ -1,13 +1,14 @@
 package com.github.gekomad.keyvalue
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
+
 import scala.concurrent.duration._
 
-class MemoTest extends FunSuite {
+class MemoTest extends AnyFunSuite {
 
   test("memo without ttl") {
     import Memo._
-    val a = immutableHashMapMemo[Int, Int](ttl = None) { (n: Int) =>
+    val a = immutableHashMapMemo[Int, Int](ttl = None) { n: Int =>
       Thread.sleep(1000)
       n + 1
     }
@@ -28,7 +29,7 @@ class MemoTest extends FunSuite {
   test("memo with ttl") {
 
     import Memo._
-    val memoize = immutableHashMapMemo[Int, Int](ttl = Some(1.second.toMillis)) { (n: Int) =>
+    val memoize = immutableHashMapMemo[Int, Int](ttl = Some(1.second.toMillis)) { n: Int =>
       Thread.sleep(2000)
       n + 1
     }

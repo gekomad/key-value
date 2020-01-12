@@ -1,8 +1,9 @@
 package com.github.gekomad.keyvalue
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
+
 import scala.concurrent.duration._
-class KeyValueTest extends FunSuite {
+class KeyValueTest extends AnyFunSuite {
 
   test("test1") {
     val kv = KeyValue[String, String]()
