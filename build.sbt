@@ -1,14 +1,14 @@
 name := "key-value"
 
-version := "0.0.3"
+version := "0.0.4"
 organization := "com.github.gekomad"
-scalaVersion := "2.13.1"
+scalaVersion := "2.13.3"
 
-libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.0-M2" % Test
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.3.0-SNAP2" % Test
 
-crossScalaVersions := Seq("2.10.7", "2.11.12", "2.12.8")
+crossScalaVersions := Seq("2.10.7", "2.11.12", "2.12.8", "2.13.3")
 
-scalacOptions := Seq(
+scalacOptions ++= Seq(
   "-deprecation",
   "-encoding", "UTF-8",
   "-language:postfixOps",

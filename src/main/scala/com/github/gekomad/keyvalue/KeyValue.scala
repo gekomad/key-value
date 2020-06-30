@@ -61,7 +61,7 @@ trait KeyValue[A, B] {
   def delete(key1: String, key2: A): Unit = map.get(key1) match {
     case Some(g) =>
       g -= key2
-      if (g.size == 0) map -= key1
+      if (g.isEmpty) map -= key1
     case _ => ()
   }
 

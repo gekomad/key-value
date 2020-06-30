@@ -100,7 +100,7 @@ class KeyValueTest extends AnyFunSuite {
     kv.set("key1-a", "key2-a", "value-a", ttl = Some(100.millis.toMillis))
     assert(kv.get("key1-a", "key2-a") == Some("value-a"))
     Thread.sleep(110)
-    assert(kv.get("key1-a", "key2-a") == None)
+    assert(kv.get("key1-a", "key2-a").isEmpty)
     assert(kv.size == 0)
   }
 

@@ -24,10 +24,7 @@ sealed abstract class Memo[@specialized(Int) K, @specialized(Int, Long, Double) 
 object Memo {
   def memo[@specialized(Int) K, @specialized(Int, Long, Double) V](f: (K => V) => K => V): Memo[K, V] =
     new Memo[K, V] {
-      override def apply(z: K => V): K => V = {
-        val a = f(z)
-        a
-      }
+      override def apply(z: K => V): K => V = f(z)
     }
 
   def nilMemo[@specialized(Int) K, @specialized(Int, Long, Double) V]: Memo[K, V] =
@@ -81,14 +78,14 @@ object Memo {
           val optValue = map get k
           val value = optValue.getOrElse {
             val x = new Value(f(k), ttl)
-            map = map updated (k, x)
+            map = map.updated(k, x)
             x
           }
           value.ttl match {
             case Some(time) =>
               if ((System.currentTimeMillis() - value.created) > time) {
                 val x = new Value(f(k), ttl)
-                map = map updated (k, x)
+                map = map.updated(k, x)
                 x.value
               } else value.value
             case None => value.value
