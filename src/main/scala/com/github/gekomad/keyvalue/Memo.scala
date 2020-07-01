@@ -4,11 +4,11 @@
 package com.github.gekomad.keyvalue
 
 import java.util.concurrent.Executors
+
 import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, ExecutionContextExecutorService, Future}
 
-import scala.concurrent.{ExecutionContext, Future}
-
-class Value[@specialized(Int, Long, Double) V](val value: V, val ttl: Option[Long]) {
+class Value[@specialized(Int, Long, Double) V](val value: V, val ttl: Option[FiniteDuration]) {
   val created: Long = System.currentTimeMillis()
 }
 
@@ -50,27 +50,30 @@ object Memo {
 
   import collection.immutable
 
-  def immutableMapMemo[K, V](m: immutable.Map[K, Value[V]], ttl: Option[Long], timeToCleanMill: Long): Memo[K, V] = {
+  private def immutableMapMemo[K, V](
+    m: immutable.Map[K, Value[V]],
+    ttl: Option[FiniteDuration],
+    GCtriggerMill: Option[FiniteDuration]
+  ): Memo[K, V] = {
     var map = m
 
-    implicit val ec = ExecutionContext.fromExecutorService(Executors.newWorkStealingPool(1))
+    implicit val ec: ExecutionContextExecutorService =
+      ExecutionContext.fromExecutorService(Executors.newWorkStealingPool(1))
 
-    Future(while (true) {
-
-      Thread.sleep(timeToCleanMill)
-
-      for {
-        (idx1, theValue) <- map
-
-      } yield {
-        theValue.ttl match {
-          case Some(time) =>
-            if ((System.currentTimeMillis() - theValue.created) > time) map -= idx1
-          case None => ()
+    GCtriggerMill.foreach { d =>
+      Future {
+        while (true) {
+          Thread.sleep(d.toMillis)
+          map.foreach {
+            case (key, value) =>
+              value.ttl match {
+                case Some(time) => if ((System.currentTimeMillis() - value.created) > time.toMillis) map -= key
+                case None       => ()
+              }
+          }
         }
       }
-
-    })
+    }
 
     memo[K, V](
       f =>
@@ -83,7 +86,7 @@ object Memo {
           }
           value.ttl match {
             case Some(time) =>
-              if ((System.currentTimeMillis() - value.created) > time) {
+              if ((System.currentTimeMillis() - value.created) > time.toMillis) {
                 val x = new Value(f(k), ttl)
                 map = map.updated(k, x)
                 x.value
@@ -98,19 +101,19 @@ object Memo {
     * a meaningful `hashCode` and `java.lang.Object.equals`.
     * $immuMapNote
     */
-  def immutableHashMapMemo[K, V](ttl: Option[Long], timeToCleanMill: Long = 1.hour.toMillis): Memo[K, V] = //TODO >0
-    immutableMapMemo(new immutable.HashMap[K, Value[V]], ttl, timeToCleanMill)
+  def immutableHashMapMemo[K, V](ttl: Option[FiniteDuration], GCtriggerMill: Option[FiniteDuration]): Memo[K, V] =
+    immutableMapMemo(new immutable.HashMap[K, Value[V]], ttl, GCtriggerMill)
 
   /** Cache results in a list map.  Nonsensical unless `K` has
     * a meaningful `java.lang.Object.equals`.  $immuMapNote
     */
-  def immutableListMapMemo[K, V](ttl: Option[Long], timeToCleanMill: Long = 1.hour.toMillis): Memo[K, V] =
-    immutableMapMemo(new immutable.ListMap[K, Value[V]], ttl, timeToCleanMill)
+  def immutableListMapMemo[K, V](ttl: Option[FiniteDuration], GCtriggerMill: Option[FiniteDuration]): Memo[K, V] =
+    immutableMapMemo(new immutable.ListMap[K, Value[V]], ttl, GCtriggerMill)
 
   /** Cache results in a tree map. $immuMapNote */
   def immutableTreeMapMemo[K: scala.Ordering, V](
-    ttl: Option[Long],
-    timeToCleanMill: Long = 1.hour.toMillis
+    ttl: Option[FiniteDuration],
+    timeToCleanMill: Option[FiniteDuration]
   ): Memo[K, V] =
     immutableMapMemo(new immutable.TreeMap[K, Value[V]], ttl, timeToCleanMill)
 }
