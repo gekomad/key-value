@@ -10,7 +10,7 @@ Memo with TTL (some Scalaz code)
 Just add `KeyValue.scala` or `Memo.scala` to your project
 
 ### Memo with TTL
-```
+```scala
 import Memo._
 val memoize = immutableHashMapMemo[Int, Int](ttl = Some(1.second), GCtriggerMill = Some(1.hour)) { n: Int =>
   Thread.sleep(500)
@@ -38,7 +38,7 @@ Thread.sleep(1000)
 }
 ```
 ### Key-value with TTL
-```
+```scala
 val kv = KeyValue[String, String](GCtriggerMill = Some(1.hour))                               
 kv.set("key1-a", "value1-a", ttl = Some(100.millis))                                          
 assert(kv.get("key1-a") == Some("value1-a"))                                                  
