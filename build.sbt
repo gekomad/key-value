@@ -1,14 +1,12 @@
 name := "key-value"
 
-version := "0.0.5"
+version := "0.1.0"
 organization := "com.github.gekomad"
-scalaVersion := "2.13.3"
+scalaVersion := "2.13.10"
 
-libraryDependencies += "org.scalatest" %% "scalatest" % "3.3.0-SNAP2" % Test
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.3.0-SNAP3" % Test
 
-crossScalaVersions := Seq("2.10.7", "2.11.12", "2.12.8", "2.13.3")
-
-val options = Seq(
+val scalacOptions = Seq(
   "-deprecation", // Emit warning and location for usages of deprecated APIs.
   "-encoding", "UTF-8", // Specify character encoding used by source files.
   "-language:postfixOps",
@@ -27,8 +25,3 @@ val options = Seq(
   "-explaintypes", // Explain type errors in more detail.
   "-Xfatal-warnings" // Fail the compilation if there are any warnings.
 )
-
-scalacOptions ++= (CrossVersion.partialVersion(scalaVersion.value) match {
-  case Some((2, 13)) => options
-  case _             => options ++ Seq("-Ypartial-unification", "-language:higherKinds")
-})

@@ -22,7 +22,7 @@ sealed abstract class Memo[@specialized(Int) K, @specialized(Int, Long, Double) 
 /** @define immuMapNote As this memo uses a single var, it's
   * thread-safe. */
 object Memo {
-  def memo[@specialized(Int) K, @specialized(Int, Long, Double) V](f: (K => V) => K => V): Memo[K, V] =
+  private def memo[@specialized(Int) K, @specialized(Int, Long, Double) V](f: (K => V) => K => V): Memo[K, V] =
     new Memo[K, V] {
       override def apply(z: K => V): K => V = f(z)
     }

@@ -15,7 +15,7 @@ final case class KeyValue[K, V](GCtriggerMill: Option[FiniteDuration]) {
 
   private val map: scala.collection.mutable.Map[K, Value] = scala.collection.mutable.Map.empty[K, Value]
 
-  private def GC(): Unit = map.foreach {
+  def gc(): Unit = map.foreach {
     case (key, value) =>
       value.ttl match {
         case Some(time) => if ((System.currentTimeMillis() - value.created) > time) delete(key)
@@ -26,7 +26,7 @@ final case class KeyValue[K, V](GCtriggerMill: Option[FiniteDuration]) {
   GCtriggerMill.foreach { d =>
     Future(while (true) {
       Thread.sleep(d.toMillis)
-      GC()
+      gc()
     })
   }
 
@@ -51,8 +51,5 @@ final case class KeyValue[K, V](GCtriggerMill: Option[FiniteDuration]) {
 
   def delete(key: K): Unit = map -= key
 
-  def size: Int = {
-    GC()
-    map.size
-  }
+  def size: Int = map.size
 }

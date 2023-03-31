@@ -7,20 +7,20 @@ class KeyValueTest extends AnyFunSuite {
 
   test("test ttl") {
     val kv = KeyValue[String, String](GCtriggerMill = Some(1.hour))
-    kv.set("key1-a", "value1-a", ttl = Some(100.millis))
-    assert(kv.get("key1-a") == Some("value1-a"))
+    kv.set("key1", "value1", ttl = Some(100.millis))
+    assert(kv.get("key1") == Some("value1"))
     Thread.sleep(110)
-    assert(kv.get("key1-a").isEmpty)
+    assert(kv.get("key1").isEmpty)
     assert(kv.size == 0)
 
-    kv.set("key1-a", "value1-a", ttl = None)
+    kv.set("key1", "value1", ttl = None)
     kv.clear()
     assert(kv.size == 0)
 
-    kv.set("key2-a", "value2-a", ttl = Some(10.millis))
+    kv.set("key2", "value2", ttl = Some(10.millis))
 
     Thread.sleep(11)
-
+    kv.gc()
     assert(kv.size == 0)
   }
 
