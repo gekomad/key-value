@@ -1,10 +1,8 @@
 package com.github.gekomad.keyvalue
 
-import org.scalatest.funsuite.AnyFunSuite
-
 import scala.concurrent.duration._
 
-class MemoTest extends AnyFunSuite {
+class MemoTest extends munit.FunSuite {
 
   test("memo with ttl") {
     import Memo._

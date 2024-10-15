@@ -8,4 +8,5 @@ target
 /RUNNING_PID
 .attach_pid*
 .pid
+.bsp/
 **/*.log
