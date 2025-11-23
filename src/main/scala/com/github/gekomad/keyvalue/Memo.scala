@@ -32,7 +32,7 @@ object Memo {
 
   import collection.mutable
 
-  def mutableMapMemo[K, V](a: mutable.Map[K, V]): Memo[K, V] =
+  private def mutableMapMemo[K, V](a: mutable.Map[K, V]): Memo[K, V] =
     memo[K, V](f => k => new Value(a.getOrElseUpdate(k, f(k)), None).value)
 
   /** Cache results in a [[scala.collection.mutable.HashMap]].

@@ -4,16 +4,19 @@ import scala.concurrent.duration._
 
 class MemoTest extends munit.FunSuite {
 
+  def myFunc(n: Int): Double = n + 1.0
+
   test("memo with ttl") {
+
     import Memo._
-    val memoize = immutableHashMapMemo[Int, Int](ttl = Some(100.millis), GCtriggerMill = Some(1.hour)) { n: Int =>
+    val memoize = immutableHashMapMemo[Int, Double](ttl = Some(100.millis), GCtriggerMill = Some(1.hour)) { (n: Int) =>
       Thread.sleep(50)
-      n + 1
+      myFunc(n)
     }
 
     {
       val time = System.currentTimeMillis()
-      assert(memoize(1) == 2)
+      assert(memoize(1) == 2.0)
       val delay = System.currentTimeMillis() - time
       println(s"time A $delay mill") // time without memoization 52 mills
       assert(delay >= 50)
@@ -21,7 +24,7 @@ class MemoTest extends munit.FunSuite {
 
     {
       val time = System.currentTimeMillis()
-      assert(memoize(1) == 2)
+      assert(memoize(1) == 2.0)
       val delay = System.currentTimeMillis() - time
       println(s"time B $delay mill") // time with memoization 0 mills
       assert(delay < 50)
@@ -31,7 +34,7 @@ class MemoTest extends munit.FunSuite {
 
     {
       val time = System.currentTimeMillis()
-      assert(memoize(1) == 2)
+      assert(memoize(1) == 2.0)
       val delay = System.currentTimeMillis() - time
       println(s"time C $delay mill") // time after ttl 52 mills
       assert(delay >= 50)
@@ -41,14 +44,14 @@ class MemoTest extends munit.FunSuite {
   test("memo without ttl") {
 
     import Memo._
-    val memoize = immutableHashMapMemo[Int, Int](ttl = None, GCtriggerMill = Some(1.hour)) { n: Int =>
+    val memoize = immutableHashMapMemo[Int, Double](ttl = None, GCtriggerMill = Some(1.hour)) { (n: Int) =>
       Thread.sleep(50)
-      n + 1
+      myFunc(n)
     }
 
     {
       val time = System.currentTimeMillis()
-      assert(memoize(1) == 2)
+      assert(memoize(1) == 2.0)
       val delay = System.currentTimeMillis() - time
       println(s"time D $delay mill") // time without memoization 52 mills
       assert(delay >= 50)
@@ -56,7 +59,7 @@ class MemoTest extends munit.FunSuite {
 
     {
       val time = System.currentTimeMillis()
-      assert(memoize(1) == 2)
+      assert(memoize(1) == 2.0)
       val delay = System.currentTimeMillis() - time
       println(s"time E $delay mill") // time with memoization 0 mills
       assert(delay < 50)
@@ -66,7 +69,7 @@ class MemoTest extends munit.FunSuite {
 
     {
       val time = System.currentTimeMillis()
-      assert(memoize(1) == 2)
+      assert(memoize(1) == 2.0)
       val delay = System.currentTimeMillis() - time
       println(s"time F $delay mill") // time with memoization 0 mills
       assert(delay < 50)

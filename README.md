@@ -2,30 +2,32 @@
 Key-value with TTL
 =====================
 
-Memo with TTL (some Scalaz code)
+Memoization with TTL 
 =====================
 
 ## Using Library
 
 Just add `KeyValue.scala` or `Memo.scala` to your project
 
-### Memo with TTL
+### Memo with TTL (some Scalaz code)
 ```scala
+def myFunc(n: Int): Double = n + 1.0
+
 import Memo._
-val memoize = immutableHashMapMemo[Int, Int](ttl = Some(1.second), GCtriggerMill = Some(1.hour)) { n: Int =>
+val memoize = immutableHashMapMemo[Int, Double](ttl = Some(1.second), GCtriggerMill = Some(1.hour)) { n: Int =>
   Thread.sleep(500)
-  n + 1
+  myFunc(n)
 }
 
 {
   val time = System.currentTimeMillis()
-  assert(memoize(1) == 2)
+  assert(memoize(1) == 2.0)
   println(s"time without memoization ${(System.currentTimeMillis() - time)} mill") // time without memoization 503 mill
 }
 
 {
   val time = System.currentTimeMillis()
-  assert(memoize(1) == 2)
+  assert(memoize(1) == 2.0)
   println(s"time with memoization ${(System.currentTimeMillis() - time)} mill") // time with memoization 0 mill
 }
 
@@ -33,7 +35,7 @@ Thread.sleep(1000)
 
 {
   val time = System.currentTimeMillis()
-  assert(memoize(1) == 2)
+  assert(memoize(1) == 2.0)
   println(s"time after ttl ${(System.currentTimeMillis() - time)} mill") // time after ttl 501 mill
 }
 ```
