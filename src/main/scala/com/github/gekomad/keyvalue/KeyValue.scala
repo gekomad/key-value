@@ -1,8 +1,8 @@
 package com.github.gekomad.keyvalue
 
-import java.util.concurrent.Executors
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutorService, Future}
+import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext.Implicits.global
 
 trait Cleaner {
   def GC(): Unit
@@ -11,19 +11,26 @@ trait Cleaner {
 
 object KeyValue {
   private val list: scala.collection.mutable.ListBuffer[Cleaner] = scala.collection.mutable.ListBuffer.empty
-  def add[A, B](GCtriggerMill: Option[FiniteDuration], mainTLL: Option[FiniteDuration]): keyValue[A, B] = {
-    val x = new keyValue[A, B](GCtriggerMill = GCtriggerMill, mainTLL = mainTLL)
+  def add[K, V](GCtriggerMill: Option[FiniteDuration], mainTLL: Option[FiniteDuration]): keyValue[K, V] = {
+    val x = new keyValue[K, V](GCtriggerMill = GCtriggerMill, mainTLL = mainTLL)
     list.addOne(x)
     x
   }
+
+  def meomizeFunc[K, V](kv: keyValue[K, V])(f: K => V): K => V =
+    (k: K) =>
+      kv.get(k) match {
+        case Some(value) => value
+        case None =>
+          val res = f(k)
+          kv.set(k, res)
+          res
+    }
 
   def GC(): Unit         = list.foreach(_.GC())
   def invalidate(): Unit = list.foreach(_.invalidate())
 
   class keyValue[K, V](GCtriggerMill: Option[FiniteDuration], mainTLL: Option[FiniteDuration]) extends Cleaner {
-
-    private implicit val ec: ExecutionContextExecutorService =
-      ExecutionContext.fromExecutorService(Executors.newWorkStealingPool(1))
 
     private class Value(val value: V, val ttl: Option[FiniteDuration]) {
       val created: Long = System.currentTimeMillis()

@@ -5,22 +5,22 @@ import scala.concurrent.duration._
 class KeyValueTest extends munit.FunSuite {
 
   test("test ttl") {
-    val kv = KeyValue.add[String, String](GCtriggerMill = None, mainTLL = None)
-    kv.set("key1", "value1", ttl = Some(100.millis))
-    assert(kv.get("key1").contains("value1"))
+    val cache = KeyValue.add[String, String](GCtriggerMill = None, mainTLL = None)
+    cache.set("key1", "value1", ttl = Some(100.millis))
+    assert(cache.get("key1").contains("value1"))
     Thread.sleep(110)
-    assert(kv.get("key1").isEmpty)
-    assert(kv.size == 0)
+    assert(cache.get("key1").isEmpty)
+    assert(cache.size == 0)
 
-    kv.set("key1", "value1", ttl = None)
-    kv.invalidate()
-    assert(kv.size == 0)
+    cache.set("key1", "value1", ttl = None)
+    cache.invalidate()
+    assert(cache.size == 0)
 
-    kv.set("key2", "value2", ttl = Some(10.millis))
+    cache.set("key2", "value2", ttl = Some(10.millis))
 
     Thread.sleep(11)
-    kv.invalidate()
-    assert(kv.size == 0)
+    cache.invalidate()
+    assert(cache.size == 0)
   }
 
 }

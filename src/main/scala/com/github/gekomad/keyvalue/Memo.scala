@@ -3,31 +3,30 @@
   */
 package com.github.gekomad.keyvalue
 
-import java.util.concurrent.Executors
-
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutorService, Future}
+import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext.Implicits.global
 
-class Value[@specialized(Int, Long, Double) V](val value: V, val ttl: Option[FiniteDuration]) {
+class Value[V](val value: V, val ttl: Option[FiniteDuration]) {
   val created: Long = System.currentTimeMillis()
 }
 
 /** A function memoization strategy.  See companion for various
   * instances employing various strategies.
   */
-sealed abstract class Memo[@specialized(Int) K, @specialized(Int, Long, Double) V] {
+sealed abstract class Memo[K, V] {
   def apply(z: K => V): K => V
 }
 
 /** @define immuMapNote As this memo uses a single var, it's
   * thread-safe. */
 object Memo {
-  private def memo[@specialized(Int) K, @specialized(Int, Long, Double) V](f: (K => V) => K => V): Memo[K, V] =
+  private def memo[K, V](f: (K => V) => K => V): Memo[K, V] =
     new Memo[K, V] {
       override def apply(z: K => V): K => V = f(z)
     }
 
-  def nilMemo[@specialized(Int) K, @specialized(Int, Long, Double) V]: Memo[K, V] =
+  def nilMemo[K, V]: Memo[K, V] =
     memo[K, V](f => k => new Value(f(k), None).value)
 
   import collection.mutable
@@ -56,9 +55,6 @@ object Memo {
     GCtriggerMill: Option[FiniteDuration]
   ): Memo[K, V] = {
     var map = m
-
-    implicit val ec: ExecutionContextExecutorService =
-      ExecutionContext.fromExecutorService(Executors.newWorkStealingPool(1))
 
     GCtriggerMill.foreach { d =>
       Future {

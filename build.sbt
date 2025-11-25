@@ -1,6 +1,6 @@
 name := "key-value"
 
-version := "0.3.0"
+version := "0.3.1"
 organization := "com.github.gekomad"
 scalaVersion := "3.7.4"
 
