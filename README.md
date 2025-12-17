@@ -5,7 +5,7 @@ Key-value with TTL
 Memoization function with TTL 
 --------
 
-Using Library: just add `KeyValue.scala` or `Memo.scala` to your project.
+Using Library: just add `KeyValue.scala`, `Memo.scala` or `CatsCache` to your project.
 
 If primitive types are used, it is possible to avoid unboxing on key/value by adding the `@specialized` annotation.
 ### Memoize a function (some Scalaz code)
@@ -100,18 +100,35 @@ val myFuncMemoized = KeyValue.meomizeFunc(cache)(myFunc)
 ### Using Cats
 
 ```scala
-val cache: CatsCache[String, Int] =
-  CatsCache.create[String, Int]("cache1", ttl = 1.minutes, GCinterval = 5.hour).unsafeRunSync()
+ for {
+  cache <- CatsCache.create[String, Int](name = "CatsCache", ttl = 1.minutes, GCinterval = 5.hour)
+  _ <- Resource.eval {
+    for {
+      _  <- cache.upSert("a", 1)
+      s1 <- cache.size
+      _ = assert(s1 == 1)
+      a <- cache.get("a")
+      _ = assert(a.contains(1))
+      _  <- cache.delete("a")
+      s2 <- cache.size
+      _ = assert(s2 == 0)
+    } yield ()
+  }
+} yield ()
+```
 
-for {
-  _ <- cache.upSert("a", 1)
-  s1 <- cache.size
-  a <- cache.get("a")
-  _ <- cache.delete("a")
-  s2 <- cache.size
-} yield {
-  assert(s1 == 1)
-  assert(s2 == 0)
-  assert(a.contains(1))
-}
+```scala
+ for {
+      cache <- CatsCache.create[String, List[Int]](name = "CatsCache", ttl = 1.minutes, GCinterval = 5.hour)
+      _ <- Resource.eval {
+        for {
+          _  <- cache.upSert("a", List(1))
+          s1 <- cache.size
+          _ = assert(s1 == 1)
+          _ <- cache.append("a", List(2))
+          a <- cache.get("a")
+          _ = assert(a.contains(List(1, 2)))
+        } yield ()
+      }
+    } yield ()
 ```

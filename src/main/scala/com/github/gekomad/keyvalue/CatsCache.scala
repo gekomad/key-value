@@ -1,73 +1,104 @@
 package com.github.gekomad.keyvalue
 
-import cats.effect.IO
-import cats.effect.{Ref, Temporal}
+import cats.effect.*
+import cats.effect.kernel.Temporal
 import cats.syntax.all.*
+import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scala.concurrent.duration.*
+
+private case class CacheEntry[V](value: V, expiresAt: FiniteDuration)
+
+class CatsCache[K, V] private (cacheName: String, cache: Ref[IO, Map[K, CacheEntry[V]]], ttl: FiniteDuration) {
+  private val logger: Logger[IO] = Slf4jLogger.getLoggerFromName[IO](s"CatsCache:$cacheName")
+
+  def name: String = cacheName
+
+  def get(key: K): IO[Option[V]] =
+    Temporal[IO].monotonic.flatMap { now =>
+      cache.modify { map =>
+        map.get(key) match {
+          case Some(CacheEntry(v, exp)) if now < exp => (map, Some(v))
+          case Some(_)                               => (map - key, None)
+          case None                                  => (map, None)
+        }
+      }
+    }
+
+  def upSert(key: K, value: V): IO[Unit] = upSert(key, value, ttl)
+
+  def upSert(key: K, value: V, ttl1: FiniteDuration): IO[Unit] =
+    for {
+      _   <- logger.debug(s"$name upSert $key")
+      now <- Temporal[IO].monotonic
+      expiresAt = now + ttl1
+      _ <- cache.update(_.updated(key, CacheEntry(value, expiresAt)))
+    } yield ()
+
+  def clean(): IO[Unit] =
+    for {
+      _   <- logger.debug(s"$name clean")
+      now <- Temporal[IO].monotonic
+      _   <- cache.update(_.filter((_, entry) => now < entry.expiresAt))
+    } yield ()
+
+  def append[A](key: K, values: Iterable[A])(using ev: V <:< Iterable[A]): IO[Unit] =
+    for {
+      now <- Temporal[IO].monotonic
+      _ <- cache.update { map =>
+        val current = map.get(key) match {
+          case Some(CacheEntry(v, expiresAt)) if now < expiresAt => ev(v)
+          case _                                                 => Nil
+        }
+        val updated = current ++ values
+        map.updated(key, CacheEntry(updated.asInstanceOf[V], now + ttl))
+      }
+    } yield ()
+
+  def delete(k: K): IO[Unit] =
+    for {
+      _ <- logger.debug(s"$name delete $name $k")
+      _ <- cache.update(_ - k)
+    } yield ()
+
+  def empty(): IO[Unit] =
+    for {
+      _ <- logger.debug(s"$name empty")
+      _ <- cache.set(Map.empty[K, CacheEntry[V]])
+    } yield ()
+
+  def size: IO[Int] = cache.get.map(_.size)
+
+  def allKeys: IO[List[K]] = cache.get.map(_.keys.toList)
+}
 
 object CatsCache {
 
-  private case class CacheEntry[A](value: A, expiresAt: FiniteDuration)
+  def create[K, V](name: String, ttl: FiniteDuration, GCinterval: FiniteDuration): Resource[IO, CatsCache[K, V]] = {
 
-  class CatsCache[K, V] private (name1: String, cache: Ref[IO, Map[K, CacheEntry[V]]], ttl: FiniteDuration) {
-    def name: String = name1
-    def get(key: K): IO[Option[V]] =
-      for {
-        now <- Temporal[IO].monotonic
-        map <- cache.get
-        entry = map.get(key)
-        value <- entry match {
-          case Some(CacheEntry(v, expiresAt)) if now < expiresAt => v.some.pure[IO]
-          case _                                                 => delete(key) >> none[V].pure[IO]
-        }
-      } yield value
+    val logger: Logger[IO] = Slf4jLogger.getLoggerFromName[IO](s"CatsCache:$name")
 
-    def upSert(key: K, value: V): IO[Unit] = // idenpotent
-      for {
-        now <- Temporal[IO].monotonic
-        expiresAt = now + ttl
-        _ <- cache.update { a =>
-          a.get(key) match {
-            case Some(found) if now > expiresAt =>
-              a.updated(key, CacheEntry(found.value, expiresAt)) // update value and ttl
-            case None => a.updated(key, CacheEntry(value, expiresAt))
-            case _    => a
-          }
-        }
-      } yield ()
+    val cacheBuilder: IO[CatsCache[K, V]] = for {
+      ref <- Ref.of[IO, Map[K, CacheEntry[V]]](Map.empty)
+      cache = new CatsCache[K, V](cacheName = name, cache = ref, ttl = ttl)
+    } yield cache
 
-    def clean(): IO[Unit] =
-      for {
-        now <- Temporal[IO].monotonic
-        _   <- cache.update(_.filter { case (_, entry) => now < entry.expiresAt })
-      } yield ()
-
-    def delete(k: K): IO[Unit] = cache.update(_ - k)
-
-    def empty(): IO[Unit] = cache.set(Map.empty[K, CacheEntry[V]])
-
-    def size: IO[Int]        = cache.get.map(_.size)
-    def allKeys: IO[List[K]] = cache.get.map(_.keys.toList)
-  }
-
-  object CatsCache {
-    private def garbageCollector[K, V](cache: CatsCache[K, V], GCinterval: FiniteDuration): IO[Unit] =
+    def garbageCollector(cache: CatsCache[K, V]): IO[Unit] =
       (for {
         _     <- Temporal[IO].sleep(GCinterval)
+        _     <- logger.info(s"CatsCache ${cache.name} Garbage Collector start")
         size1 <- cache.size
-        _     <- cache.clean()
+        _     <- if (size1 > 50) cache.clean() else IO(())
         size2 <- cache.size
-        _     <- IO.println(s"CatsCache ${cache.name} garbage collector. Initial size: $size1 final size: $size2")
+        _     <- logger.info(s"CatsCache ${cache.name} Garbage Collector finish. Initial size: $size1, final: $size2")
       } yield ()).foreverM
 
-    def create[K, V](name: String, ttl: FiniteDuration, GCinterval: FiniteDuration): IO[CatsCache[K, V]] = {
-      val cache = Ref.of[IO, Map[K, CacheEntry[V]]](Map.empty).map { ref =>
-        new CatsCache[K, V](name, ref, ttl)
+    Resource
+      .make(cacheBuilder) { cache =>
+        logger.info(s"CatsCache ${cache.name} terminated.")
       }
-      for {
-        a <- cache
-        _ <- garbageCollector(a, GCinterval).start
-      } yield a
-    }
+      .flatTap { cache =>
+        Resource.make(garbageCollector(cache).start)(_.cancel)
+      }
   }
 }
