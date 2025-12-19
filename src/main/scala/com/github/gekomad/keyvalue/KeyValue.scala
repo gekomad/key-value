@@ -1,8 +1,7 @@
 package com.github.gekomad.keyvalue
 
-import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
-import scala.concurrent.ExecutionContext.Implicits.global
+import java.util.concurrent.{Executors, TimeUnit}
+import scala.concurrent.duration.*
 
 trait Cleaner {
   def GC(): Unit
@@ -25,7 +24,7 @@ object KeyValue {
           val res = f(k)
           kv.set(k, res)
           res
-    }
+      }
 
   def GC(): Unit         = list.foreach(_.GC())
   def invalidate(): Unit = list.foreach(_.invalidate())
@@ -38,19 +37,25 @@ object KeyValue {
 
     private val map: scala.collection.mutable.Map[K, Value] = scala.collection.mutable.Map.empty[K, Value]
 
-    def GC(): Unit = map.foreach {
-      case (key, value) =>
-        value.ttl match {
-          case Some(time) => if ((System.currentTimeMillis() - value.created) > time.toMillis) delete(key)
-          case None       => ()
-        }
+    def GC(): Unit = map.foreach { case (key, value) =>
+      value.ttl match {
+        case Some(time) => if ((System.currentTimeMillis() - value.created) > time.toMillis) delete(key)
+        case None       => ()
+      }
     }
 
-    GCtriggerMill.foreach { d =>
-      Future(while (true) {
-        Thread.sleep(d.toMillis)
-        GC()
-      })
+    GCtriggerMill.foreach { interval =>
+      val scheduler = Executors.newSingleThreadScheduledExecutor { r =>
+        val t = new Thread(r, "keyValue-cleanup-thread")
+        t.setDaemon(true)
+        t
+      }
+      scheduler.scheduleAtFixedRate(
+        () => GC(),
+        interval.toMillis,
+        interval.toMillis,
+        TimeUnit.MILLISECONDS
+      )
     }
 
     def set(key: K, value: V, ttl: Option[FiniteDuration] = mainTLL): Unit =

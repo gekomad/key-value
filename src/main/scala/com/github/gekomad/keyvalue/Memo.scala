@@ -1,25 +1,23 @@
-/**
-  * Scalaz Memo with TTL
+/** Scalaz Memo with TTL
   */
 package com.github.gekomad.keyvalue
 
-import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
-import scala.concurrent.ExecutionContext.Implicits.global
+import java.util.concurrent.{Executors, TimeUnit}
+import scala.concurrent.duration.*
 
 class Value[V](val value: V, val ttl: Option[FiniteDuration]) {
   val created: Long = System.currentTimeMillis()
 }
 
-/** A function memoization strategy.  See companion for various
-  * instances employing various strategies.
+/** A function memoization strategy. See companion for various instances employing various strategies.
   */
 sealed abstract class Memo[K, V] {
   def apply(z: K => V): K => V
 }
 
-/** @define immuMapNote As this memo uses a single var, it's
-  * thread-safe. */
+/** @define immuMapNote
+  *   As this memo uses a single var, it's thread-safe.
+  */
 object Memo {
   private def memo[K, V](f: (K => V) => K => V): Memo[K, V] =
     new Memo[K, V] {
@@ -34,15 +32,13 @@ object Memo {
   private def mutableMapMemo[K, V](a: mutable.Map[K, V]): Memo[K, V] =
     memo[K, V](f => k => new Value(a.getOrElseUpdate(k, f(k)), None).value)
 
-  /** Cache results in a [[scala.collection.mutable.HashMap]].
-    * Nonsensical if `K` lacks a meaningful `hashCode` and
+  /** Cache results in a [[scala.collection.mutable.HashMap]]. Nonsensical if `K` lacks a meaningful `hashCode` and
     * `java.lang.Object.equals`.
     */
   def mutableHashMapMemo[K, V]: Memo[K, V] =
     mutableMapMemo(new mutable.HashMap[K, V])
 
-  /** As with `mutableHashMapMemo`, but forget elements according to
-    * GC pressure.
+  /** As with `mutableHashMapMemo`, but forget elements according to GC pressure.
     */
   def weakHashMapMemo[K, V]: Memo[K, V] =
     mutableMapMemo(new mutable.WeakHashMap[K, V])
@@ -56,52 +52,54 @@ object Memo {
   ): Memo[K, V] = {
     var map = m
 
-    GCtriggerMill.foreach { d =>
-      Future {
-        while (true) {
-          Thread.sleep(d.toMillis)
-          map.foreach {
-            case (key, value) =>
-              value.ttl match {
-                case Some(time) => if ((System.currentTimeMillis() - value.created) > time.toMillis) map -= key
-                case None       => ()
-              }
-          }
-        }
+    GCtriggerMill.foreach { interval =>
+      val scheduler = Executors.newSingleThreadScheduledExecutor { r =>
+        val t = new Thread(r, "immutableMapMemo-cleanup-thread")
+        t.setDaemon(true)
+        t
       }
+      scheduler.scheduleAtFixedRate(
+        () =>
+          map.foreach { case (key, value) =>
+            value.ttl match {
+              case Some(time) => if ((System.currentTimeMillis() - value.created) > time.toMillis) map -= key
+              case None       => ()
+            }
+          },
+        interval.toMillis,
+        interval.toMillis,
+        TimeUnit.MILLISECONDS
+      )
     }
 
-    memo[K, V](
-      f =>
-        k => {
-          val optValue = map get k
-          val value = optValue.getOrElse {
-            val x = new Value(f(k), ttl)
-            map = map.updated(k, x)
-            x
-          }
-          value.ttl match {
-            case Some(time) =>
-              if ((System.currentTimeMillis() - value.created) > time.toMillis) {
-                val x = new Value(f(k), ttl)
-                map = map.updated(k, x)
-                x.value
-              } else value.value
-            case None => value.value
-          }
+    memo[K, V](f =>
+      k => {
+        val optValue = map get k
+        val value = optValue.getOrElse {
+          val x = new Value(f(k), ttl)
+          map = map.updated(k, x)
+          x
+        }
+        value.ttl match {
+          case Some(time) =>
+            if ((System.currentTimeMillis() - value.created) > time.toMillis) {
+              val x = new Value(f(k), ttl)
+              map = map.updated(k, x)
+              x.value
+            } else value.value
+          case None => value.value
+        }
       }
     )
   }
 
-  /** Cache results in a hash map.  Nonsensical unless `K` has
-    * a meaningful `hashCode` and `java.lang.Object.equals`.
+  /** Cache results in a hash map. Nonsensical unless `K` has a meaningful `hashCode` and `java.lang.Object.equals`.
     * $immuMapNote
     */
   def immutableHashMapMemo[K, V](ttl: Option[FiniteDuration], GCtriggerMill: Option[FiniteDuration]): Memo[K, V] =
     immutableMapMemo(new immutable.HashMap[K, Value[V]], ttl, GCtriggerMill)
 
-  /** Cache results in a list map.  Nonsensical unless `K` has
-    * a meaningful `java.lang.Object.equals`.  $immuMapNote
+  /** Cache results in a list map. Nonsensical unless `K` has a meaningful `java.lang.Object.equals`. $immuMapNote
     */
   def immutableListMapMemo[K, V](ttl: Option[FiniteDuration], GCtriggerMill: Option[FiniteDuration]): Memo[K, V] =
     immutableMapMemo(new immutable.ListMap[K, Value[V]], ttl, GCtriggerMill)
